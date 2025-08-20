@@ -258,20 +258,51 @@ class DecentralizedOracleNetwork:
         return None
     
     async def _parse_social_signals(self, data: Dict) -> Optional[Dict]:
-        """Parse social media signals"""
+        """Parse social media signals with normalized payload for social parser"""
         try:
-            if data.get("sentiment_spike") or data.get("post_count", 0) > 100:
-                return {
-                    "source_type": "social_media",
-                    "platform": data["platform"],
-                    "signal_strength": data.get("post_count", 0),
-                    "keywords": data.get("keywords_detected", []),
-                    "detected_at": datetime.now().isoformat()
-                }
+            if not (data.get("sentiment_spike") or data.get("post_count", 0) > 100):
+                return None
+
+            # 1) Infer disaster type dari keywords (fallback: flood)
+            kws = [k.lower() for k in data.get("keywords_detected", [])]
+            def infer_type():
+                if any(k in kws for k in ["gempa", "earthquake", "quake"]): return "earthquake"
+                if any(k in kws for k in ["banjir", "flood"]): return "flood"
+                if any(k in kws for k in ["kebakaran", "fire", "wildfire"]): return "fire"
+                if any(k in kws for k in ["tsunami"]): return "tsunami"
+                if any(k in kws for k in ["longsor", "landslide"]): return "landslide"
+                if any(k in kws for k in ["gunung", "volcano", "erupsi"]): return "volcanic"
+                return "flood"
+
+            predicted_type = infer_type()
+
+            # 2) Estimasi lokasi (sementara fallback ke Jakarta; ganti bila ada geocoder)
+            estimated_location = data.get("estimated_location") or {"lat": -6.2088, "lon": 106.8456}
+
+            # 3) Hitung ai_confidence sederhana dari sinyal sosial
+            post_count = data.get("post_count", data.get("signal_strength", 0) or 0)
+            spike = bool(data.get("sentiment_spike", False))
+            base_conf = 0.6 if spike else 0.4
+            ai_confidence = max(0.0, min(0.95, base_conf + min(0.35, post_count / 250.0)))
+
+            # 4) Nilai sentiment (fallback 0.5)
+            sentiment = float(data.get("sentiment", 0.5))
+
+            # 5) Payload terstandar sesuai ekspektasi parser sosial
+            return {
+                "source_type": "social_media",
+                "platform": data.get("platform", "unknown"),
+                "predicted_type": predicted_type,              # <— wajib untuk parser
+                "estimated_location": estimated_location,      # <— wajib untuk parser
+                "ai_confidence": ai_confidence,                # <— wajib untuk parser
+                "post_count": post_count,
+                "sentiment": sentiment,                        # <— digunakan di metadata parser
+                "keywords": data.get("keywords_detected", []),
+                "detected_at": datetime.now().isoformat()
+            }
         except Exception as e:
             self.logger.error(f"Social signals parse error: {e}")
-            
-        return None
+            return None
     
     def get_monitoring_status(self) -> Dict:
         """Get DON monitoring status"""

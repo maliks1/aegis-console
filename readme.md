@@ -41,6 +41,14 @@ Buka terminal atau command prompt, navigasikan ke folder proyek Anda, lalu jalan
 
 Perintah ini akan membangun gambar Docker dari Dockerfile dan menjalankan kontainer di latar belakang. Proses ini mungkin memerlukan waktu beberapa menit untuk pertama kali.
 
+Kemudian Initialize dulu:
+
+curl -X POST http://localhost:8080/api/initialize \
+  -H "Content-Type: application/json" \
+  -d '{"asi_endpoint":"https://asi-one.api","api_key":"demo_key"}'
+
+(Ini membangun EnhancedAegisSystem dan menjalankan init komponen)
+
 3. Mengakses Dashboard
 Setelah kontainer berjalan, buka browser web Anda dan navigasikan ke URL berikut untuk melihat dashboard:
 

@@ -7,12 +7,14 @@ import logging
 import time
 from datetime import datetime
 from typing import Dict, List, Optional
-
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
-from pydantic import BaseModel
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+
 
 # Import Aegis components
 from orchestrator import AegisOrchestrator
@@ -213,78 +215,68 @@ async def stop_don(request: EmptyRequest): # PERBAIKAN: Tambahkan parameter requ
 
 @app.post("/api/simulate")
 async def run_simulation(request: SimulationRequest):
-    """Run disaster simulation"""
     global aegis_system
-    
     if not aegis_system:
         raise HTTPException(status_code=400, detail="System not initialized")
-    
     try:
         logger.info(f"🎯 Running simulation: {request.scenario}")
-        
-        # Start performance tracking
         start_time = time.time()
-        
-        # Run simulation using simulator
+
         result = await aegis_system.simulator.run_simulation(request.scenario)
-        
         processing_time = time.time() - start_time
-        
-        # Broadcast real-time updates
-        await broadcast_update({
+
+        # Broadcasts — gunakan jsonable_encoder
+        await broadcast_update(jsonable_encoder({
             "type": "event_detected",
             "event_id": result.get("event_id"),
             "title": request.scenario.replace("_", " "),
-            "disaster_type": aegis_system.simulator._get_disaster_type_from_scenario(request.scenario),
-            "details": f"Simulation started - processing through AI pipeline",
+            "disaster_type": _infer_disaster_type_from_scenario(request.scenario),
+            "details": "Simulation started - processing through AI pipeline",
             "timestamp": datetime.now().isoformat()
-        })
-        
-        # Simulate pipeline updates
-        pipeline_updates = [
+        }))
+
+        for update in [
             {"status": "parsing_complete", "delay": 0.5},
             {"status": "validation_started", "delay": 1.0},
             {"status": "consensus_reached", "delay": 1.5},
             {"status": "dao_created", "delay": 0.5},
-            {"status": "notifications_sent", "delay": 0.3}
-        ]
-        
-        for update in pipeline_updates:
+            {"status": "notifications_sent", "delay": 0.3},
+        ]:
             await asyncio.sleep(update["delay"])
-            await broadcast_update({
+            await broadcast_update(jsonable_encoder({
                 "type": "pipeline_update",
                 "event_id": result.get("event_id"),
                 "status": update["status"],
                 "timestamp": datetime.now().isoformat()
-            })
-        
-        # Final result
-        await broadcast_update({
-            "type": "simulation_complete", 
+            }))
+
+        await broadcast_update(jsonable_encoder({
+            "type": "simulation_complete",
             "event_id": result.get("event_id"),
             "scenario": request.scenario,
             "processing_time": processing_time,
-            "result": result,
+            "result": result,  # <-- sekarang aman
             "timestamp": datetime.now().isoformat()
-        })
-        
-        return {
+        }))
+
+        # HTTP response juga aman
+        return JSONResponse(content=jsonable_encoder({
             "success": True,
             "event_id": result.get("event_id"),
             "scenario": request.scenario,
             "processing_time_seconds": processing_time,
             "pipeline_status": result.get("pipeline_status"),
             "timestamp": datetime.now().isoformat()
-        }
-        
+        }))
     except Exception as e:
         logger.error(f"Simulation failed: {e}")
-        await broadcast_update({
+        await broadcast_update(jsonable_encoder({
             "type": "error",
             "message": f"Simulation failed: {str(e)}",
             "timestamp": datetime.now().isoformat()
-        })
+        }))
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/stop")
 async def stop_system(request: EmptyRequest): # PERBAIKAN: Tambahkan parameter request
@@ -386,24 +378,15 @@ async def websocket_endpoint(websocket: WebSocket):
             connected_websockets.remove(websocket)
 
 async def broadcast_update(data: Dict):
-    """Broadcast update to all connected WebSocket clients"""
     if not connected_websockets:
         return
-    
-    message = {
-        "type": "update",
-        "data": data
-    }
-    
-    # Send to all connected clients
+    message = jsonable_encoder({"type": "update", "data": data})
     disconnected = []
     for websocket in connected_websockets:
         try:
             await websocket.send_json(message)
         except:
             disconnected.append(websocket)
-    
-    # Remove disconnected clients
     for ws in disconnected:
         connected_websockets.remove(ws)
 
@@ -471,3 +454,10 @@ if __name__ == "__main__":
         reload=True,
         log_level="info"
     )
+
+def _infer_disaster_type_from_scenario(name: str) -> str:
+    s = name.lower()
+    if "flood" in s or "banjir" in s: return "flood"
+    if "earthquake" in s or "gempa" in s: return "earthquake"
+    if "fire" in s or "kebakaran" in s: return "fire"
+    return "unknown"
