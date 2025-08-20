@@ -31,13 +31,13 @@ Pastikan Anda telah menginstal Docker Desktop di komputer Anda. Ini adalah satu-
 🚀 Cara Menjalankan
 Ikuti langkah-langkah di bawah ini untuk memulai proyek Aegis Protocol di mesin lokal Anda.
 
-1. Salin File ke Satu Direktori
+**1. Salin File ke Satu Direktori**
 Pastikan semua file proyek (termasuk Dockerfile, docker-compose.yml, api_server.py, dan aegis_protocol.html) berada dalam satu folder.
 
-2. Jalankan dengan Docker Compose
+**2. Jalankan dengan Docker Compose**
 Buka terminal atau command prompt, navigasikan ke folder proyek Anda, lalu jalankan perintah berikut:
 
-docker-compose up -d --build
+**docker-compose up -d --build**
 
 Perintah ini akan membangun gambar Docker dari Dockerfile dan menjalankan kontainer di latar belakang. Proses ini mungkin memerlukan waktu beberapa menit untuk pertama kali.
 
@@ -76,4 +76,5 @@ disaster_parsers.py: Mengandung agen-agen yang bertanggung jawab untuk memproses
 communications.py: Mengelola notifikasi dan komunikasi publik.
 
 🤝 Kontribusi
+
 Selamat datang untuk semua kontribusi! Jika Anda menemukan bug atau memiliki saran untuk perbaikan, silakan buka issue atau buat pull request di repositori proyek ini.
